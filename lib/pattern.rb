@@ -129,6 +129,16 @@ class Pattern
     return [x1,y1], [x2, y2]
   end
   
+  def in_box(segment, point)
+    # This is stupid.
+    
+    # x-coords
+    x_works = (segment[0][0] > point[0] && segment[1][0] < point[0]) || (segment[0][0] < point[0] && segment[1][0] > point[0])
+    y_works = (segment[0][1] > point[1] && segment[1][1] < point[1]) || (segment[0][1] < point[1] && segment[1][1] > point[1])
+    
+    x_works && y_works
+  end
+  
   # Oh kill me now.
   def intersect?(triangle, lines)
     line1 = [triangle[0], triangle[2]]
@@ -145,12 +155,12 @@ class Pattern
       
       if(!int1.nil?)
         puts "#{line1.inspect} intersect #{line.inspect} at #{int1.inspect}"
-        return true if(int1!=line[0] and int1!=line[1])
+        return true if(in_box(line1, int1) && in_box(line, int1))
       end
       
       if (!int2.nil?)
         puts "#{line2.inspect} intersect #{line.inspect} at #{int2.inspect}"
-        return true if(int2!=line[0] and int2!=line[1])
+        return true if(in_box(line2, int2) && in_box(line, int2))
       end
       
       return false
