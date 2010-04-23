@@ -6,13 +6,13 @@ class Pattern
     @graph = graph
     @tree = tree
     @root = root
-    @patch = []
-    @source_incoming_edge = {}
-    @patch_incoming_edge = {}
-    calculate_pattern()
+    @patches = []
+    new_patch = {:faces => [], :source_incoming_edge => {}, :patch_incoming_edge => {}}
+    @patches << new_patch
+    calculate_pattern(root, new_patch)
   end
   
-  def calculate_pattern
+  def calculate_pattern(root, patch)
     #         C <--- C is calculated in the recursive method
     #       / \ 
     #     /    \  
@@ -21,7 +21,7 @@ class Pattern
     #
     
     # Vertices don't have position information. We make them into Point2d objects.
-    points = @root.vertices.map{|vertex| vertex.position}
+    points = root.vertices.map{|vertex| vertex.position}
     
     # Pick an edge
     source_point_a = points[0]
@@ -33,10 +33,10 @@ class Pattern
     patch_point_b = [distance, 0.0]
     
     # Save the initial edge for the recursive method
-    @source_incoming_edge[@root] = [source_point_a, source_point_b]
-    @patch_incoming_edge[@root] = [patch_point_a, patch_point_b]
+    patch[:source_incoming_edge][root] = [source_point_a, source_point_b]
+    patch[:patch_incoming_edge][root] = [patch_point_a, patch_point_b]
     
-    calculate_pattern_recursive(@root)
+    calculate_pattern_recursive(root, patch)
   end
   
   def find_ring_transform(seq, a, b)
@@ -129,7 +129,35 @@ class Pattern
     return [x1,y1], [x2, y2]
   end
   
-  def calculate_pattern_recursive(face)
+  # Oh kill me now.
+  def intersect?(triangle, lines)
+    line1 = [triangle[0], triangle[2]]
+    line2 = [triangle[1], triangle[2]]
+    
+    lines.any? do |line|
+      $l1 = line1
+      $l2 = line2
+      $l = line
+      $t = triangle
+      
+      int1 = Geom.intersect_line_line line, line1
+      int2 = Geom.intersect_line_line line, line2
+      
+      if(!int1.nil?)
+        puts "#{line1.inspect} intersect #{line.inspect} at #{int1.inspect}"
+        return true if(int1!=line[0] and int1!=line[1])
+      end
+      
+      if (!int2.nil?)
+        puts "#{line2.inspect} intersect #{line.inspect} at #{int2.inspect}"
+        return true if(int2!=line[0] and int2!=line[1])
+      end
+      
+      return false
+    end
+  end
+  
+  def calculate_pattern_recursive(face, patch)
     #         C <--- We calculate point C
     #       / \ 
     #     /    \  
@@ -137,8 +165,8 @@ class Pattern
     # A ~~~~~~~~~ B  <--- Incoming edge AB is already calculated
     
     # Grab the initial edge's position in the 2D pattern and the 3D source object
-    source_point_a, source_point_b = @source_incoming_edge[face]
-    patch_point_a, patch_point_b = @patch_incoming_edge[face]
+    source_point_a, source_point_b = patch[:source_incoming_edge][face]
+    patch_point_a, patch_point_b = patch[:patch_incoming_edge][face]
     
     # Vertices don't have position information. We make them into Point2d objects.
     source_points = face.vertices.map{|vertex| vertex.position}
@@ -157,8 +185,19 @@ class Pattern
     # We choose the first because it's above instead of below
     patch_point_c = solve_triangle(patch_point_a, patch_point_b, dist_bc, dist_ac).first
     
-    # Add the new triangle to our flattened mesh
-    @patch << [patch_point_a, patch_point_b, patch_point_c]
+    triangle = [patch_point_a, patch_point_b, patch_point_c]
+    
+    if intersect?(triangle, patch[:patch_incoming_edge].values)
+      # Make a new one
+      puts "intersect!"
+      new_patch = {:faces => [], :source_incoming_edge => {}, :patch_incoming_edge => {}}
+      @patches << new_patch
+      calculate_pattern(face, new_patch)
+      return
+    else
+      # Add the new triangle to our flattened mesh
+      patch[:faces] << triangle
+    end
     
     # I can't think of a better way right now, so I'm emulating the ring tranform
     # method used in the python code. This makes it easier to ensure the connecting
@@ -196,24 +235,25 @@ class Pattern
       end
         
       # Store initial edge that we want to calculate a triangle for
-      @source_incoming_edge[connected_face] = [source_ordering[new_point_a_index], source_ordering[new_point_b_index]]
-      @patch_incoming_edge[connected_face] = [patch_ordering[new_point_a_index], patch_ordering[new_point_b_index]]
+      patch[:source_incoming_edge][connected_face] = [source_ordering[new_point_a_index], source_ordering[new_point_b_index]]
+      patch[:patch_incoming_edge][connected_face] = [patch_ordering[new_point_a_index], patch_ordering[new_point_b_index]]
       
       # Calculate the triangle and its connections
-      calculate_pattern_recursive(connected_face)
+      calculate_pattern_recursive(connected_face, patch)
     end
     
   end
   
   def build
-    $patch = @patch
+    @patches.each do |patch|
+      $patch=patch
+      
+      pattern_group = Sketchup.active_model.entities.add_group
     
-    pattern_group = Sketchup.active_model.entities.add_group
-    
-    @patch.each do |triangle|
-      pattern_group.entities.add_face *triangle
+      patch[:faces].each do |triangle|
+        pattern_group.entities.add_face *triangle
+      end
     end
-    
   end 
   
 end
