@@ -153,17 +153,19 @@ class Pattern
       int1 = Geom.intersect_line_line line, line1
       int2 = Geom.intersect_line_line line, line2
       
+      intersected = false
+      
       if(!int1.nil?)
         puts "#{line1.inspect} intersect #{line.inspect} at #{int1.inspect}"
-        return true if(in_box(line1, int1) && in_box(line, int1))
+        intersected = true if(in_box(line1, int1) && in_box(line, int1))
       end
       
       if (!int2.nil?)
         puts "#{line2.inspect} intersect #{line.inspect} at #{int2.inspect}"
-        return true if(in_box(line2, int2) && in_box(line, int2))
+        intersected = true if(in_box(line2, int2) && in_box(line, int2))
       end
       
-      return false
+      intersected
     end
   end
   

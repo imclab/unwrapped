@@ -9,26 +9,9 @@ def build_tree(predecessors, graph)
   tree
 end
 
-def tree_height(tree, root)
-  return 0 if tree[root].nil? || tree[root].empty?
-
-  max_subtree_height = tree[root].map{|subtree| tree_height(tree, subtree)}.max
-  
-  max_subtree_height + 1
-end
-
-def color_tree(tree, node, index=0, height=100)
-  if tree[node]
-    tree[node].each do |successor|
-      color_tree(tree, successor, index+1, height)
-    end
-  end
-  
-  node.material = 0xFFFF00 | (0xFF * (index.to_f/height)).to_i
-end
-
 def build_graph(cost_method)
   
+  Sketchup.set_status_text "Building graph mesh", SB_PROMPT
   
   $graph = graph = Graphy::UndirectedGraph.new
   
@@ -66,7 +49,7 @@ def build_graph(cost_method)
   
   connected_components.each_with_index do |subgraph, index|
     
-    puts "Processing subgraph #{index+1}"
+    Sketchup.set_status_text "Processing subgraph #{index+1} / #{connected_components.size}", SB_PROMPT
     
     costs, paths, delta = subgraph.floyd_warshall(cost_method)
     
@@ -113,8 +96,8 @@ def build_graph(cost_method)
     model.active_layer = pattern_layer
     model.layers.reject{|l| l == pattern_layer}.each{|l| l.visible = false}
     
-    puts "Donezo."
-    
   end
+  
+  Sketchup.set_status_text "Processing completed", SB_PROMPT
   
 end
