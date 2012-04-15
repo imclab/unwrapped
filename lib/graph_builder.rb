@@ -20,7 +20,9 @@ def build_graph(cost_method)
   edges = selection.select{|s| s.class == Sketchup::Edge }
   faces = selection.select{|s| s.class == Sketchup::Face }
   
+  # Bad code design alert
   mesh_layer = model.layers.add "Mesh"
+  $mesh_layer = mesh_layer
   
   save = model.active_layer
   model.active_layer = mesh_layer
@@ -78,6 +80,8 @@ def build_graph(cost_method)
     costs, predecessors = subgraph.dijkstras_algorithm(root_face, cost_method)
     
     tree = build_tree(predecessors, subgraph)
+    
+    $tree = tree
     # height = tree_height(tree, root_face)
     # color_tree(tree, root_face, 0, height)
     

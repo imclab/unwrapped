@@ -7,8 +7,9 @@ class Pattern
     @tree = tree
     @root = root
     @patches = []
-    new_patch = {:faces => [], :source_incoming_edge => {}, :patch_incoming_edge => {}}
+    new_patch = {:face_names => {}, :faces => {}, :source_incoming_edge => {}, :patch_incoming_edge => {}}
     @patches << new_patch
+    @edges_seen = []
     calculate_pattern(root, new_patch)
   end
   
@@ -35,6 +36,9 @@ class Pattern
     # Save the initial edge for the recursive method
     patch[:source_incoming_edge][root] = [source_point_a, source_point_b]
     patch[:patch_incoming_edge][root] = [patch_point_a, patch_point_b]
+    
+    # Hack to get overlap detection working
+    @edges_seen << patch[:patch_incoming_edge][root]
     
     calculate_pattern_recursive(root, patch)
   end
@@ -145,10 +149,6 @@ class Pattern
     line2 = [triangle[1], triangle[2]]
     
     lines.any? do |line|
-      $l1 = line1
-      $l2 = line2
-      $l = line
-      $t = triangle
       
       int1 = Geom.intersect_line_line line, line1
       int2 = Geom.intersect_line_line line, line2
@@ -180,6 +180,9 @@ class Pattern
     source_point_a, source_point_b = patch[:source_incoming_edge][face]
     patch_point_a, patch_point_b = patch[:patch_incoming_edge][face]
     
+    # Auto-increment face number
+    patch[:face_names][face] = patch[:face_names].size.to_s
+    
     # Vertices don't have position information. We make them into Point2d objects.
     source_points = face.vertices.map{|vertex| vertex.position}
     
@@ -199,17 +202,21 @@ class Pattern
     
     triangle = [patch_point_a, patch_point_b, patch_point_c]
     
-    if intersect?(triangle, patch[:patch_incoming_edge].values)
+    if intersect?(triangle, @edges_seen)
       # Make a new one
       puts "intersect!"
-      new_patch = {:faces => [], :source_incoming_edge => {}, :patch_incoming_edge => {}}
+      new_patch = {:face_names => {}, :faces => {}, :source_incoming_edge => {}, :patch_incoming_edge => {}}
       @patches << new_patch
       calculate_pattern(face, new_patch)
       return
     else
       # Add the new triangle to our flattened mesh
-      patch[:faces] << triangle
+      patch[:faces][face] = triangle
     end
+    
+    # Hack to get overlap detection working
+    @edges_seen << [patch_point_a, patch_point_c]
+    @edges_seen << [patch_point_b, patch_point_c]
     
     # I can't think of a better way right now, so I'm emulating the ring tranform
     # method used in the python code. This makes it easier to ensure the connecting
@@ -257,14 +264,32 @@ class Pattern
   end
   
   def build
+    
+    # yuck
+    $total_width = 0
+    
     @patches.each do |patch|
       $patch=patch
       
       pattern_group = Sketchup.active_model.entities.add_group
+      
+      save = Sketchup.active_model.active_layer
+      Sketchup.active_model.active_layer = $mesh_layer
+        source_numbers_group = Sketchup.active_model.entities.add_group
+      Sketchup.active_model.active_layer = save
     
-      patch[:faces].each do |triangle|
-        pattern_group.entities.add_face *triangle
+      patch[:faces].each_pair do |face, triangle|
+        new_face = pattern_group.entities.add_face *triangle
+        
+        pattern_group.entities.add_text patch[:face_names][face], new_face.centroid
+        source_numbers_group.entities.add_text patch[:face_names][face], face.centroid
       end
+      
+      patch_width = pattern_group.bounds.width
+      t = Geom::Transformation.translation [$total_width, 0]
+      pattern_group.transform! t
+      $total_width += patch_width
+      
     end
   end 
   
